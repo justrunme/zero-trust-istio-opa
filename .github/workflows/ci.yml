@@ -99,10 +99,12 @@ jobs:
 
       - name: Update README with Security Summary
         run: |
-          SUMMARY_CONTENT=$(cat SECURITY-REPORT.md)
-          # Escape special characters for sed
-          ESCAPED_SUMMARY=$(echo "$SUMMARY_CONTENT" | sed -e 's/[\/&]/\\&/g')
-          sed -i "/<!-- SECURITY_SUMMARY_START -->/,/<!-- SECURITY_SUMMARY_END -->/c\\<!-- SECURITY_SUMMARY_START -->\\n${ESCAPED_SUMMARY}\\n<!-- SECURITY_SUMMARY_END -->" README.md
+          awk \
+            'BEGIN {inside=0}\
+            /<!-- SECURITY_SUMMARY_START -->/ {print; while((getline line < "SECURITY-REPORT.md") > 0) print line; inside=1; next}\
+            /<!-- SECURITY_SUMMARY_END -->/ {inside=0}\
+            !inside
+          ' README.md > README.tmp && mv README.tmp README.md
 
       - name: Commit updated README
         run: |
