@@ -20,7 +20,10 @@ jobs:
         run: |
           curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
           sudo install minikube-linux-amd64 /usr/local/bin/minikube
-          sudo apt-get update && sudo apt-get install -y kubectl jq helm
+          sudo apt-get update && sudo apt-get install -y kubectl jq
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
       - name: Start Minikube
         run: |
