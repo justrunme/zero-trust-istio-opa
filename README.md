@@ -57,5 +57,36 @@ zero-trust-istio-opa/
 ├── dashboards/
 │   ├── grafana.json                  # (optional) Grafana dashboard export
 │   └── kiali-config.yaml             # Kiali configuration (if needed)
-└── SECURITY-REPORT.md                # Summary: which policies were triggered, what was blocked
+├── SECURITY-REPORT.md                # Summary: which policies were triggered, what was blocked
+└── sample-summary.md                 # Sample security summary for README.md
 ```
+
+## CI/CD Status
+
+[![CI](https://github.com/justrunme/zero-trust-istio-opa/actions/workflows/ci.yml/badge.svg)](https://github.com/justrunme/zero-trust-istio-opa/actions/workflows/ci.yml)
+
+## Security Summary Snapshot
+
+<!-- SECURITY_SUMMARY_START -->
+<!-- SECURITY_SUMMARY_END -->
+
+## Detailed Security Scan Results
+
+### Trivy Scan Results
+
+```
+# Trivy scan results will be inserted here by CI
+```
+
+### Kubescape Scan Results
+
+```
+# Kubescape scan results will be inserted here by CI
+```
+
+### Prowler Scan Results
+
+```
+# Prowler scan results will be inserted here by CI
+```
+
