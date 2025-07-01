@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Minikube
+        uses: manusa/actions-setup-minikube@v2.4.1
+        with:
+          minikube version: 'v1.23.2'
+          kubernetes version: 'v1.22.2'
+
+      - name: Install Istio
+        run: |
+          curl -L https://istio.io/downloadIstio | sh -
+          istio-*/bin/istioctl install --set profile=demo -y
+
+      - name: Deploy Application
+        run: |
+          kubectl apply -f manifests/namespace.yaml
+          kubectl apply -f manifests/app/
+          kubectl apply -f manifests/istio/
+
+      - name: Deploy OPA Policies
+        run: kubectl apply -f policies/
+
+      - name: Test Policies
+        run: ./scripts/test_policy.sh
