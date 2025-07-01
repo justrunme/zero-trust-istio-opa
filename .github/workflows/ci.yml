@@ -41,29 +41,40 @@ jobs:
           istioctl install --set profile=demo -y
           kubectl label namespace default istio-injection=enabled
 
-      - name: Deploy Sample Application and Wait for Ready
+      - name: Deploy Sample Application
         run: |
           kubectl apply -f manifests/namespace.yaml
           kubectl apply -f manifests/istio/istio-injection-label.yaml
           kubectl apply -f manifests/app/
           kubectl apply -f manifests/istio/
+
+      - name: Wait for Minikube to be Ready
+        run: kubectl get nodes
+
+      - name: Wait for Frontend deployment
+        run: |
+          echo "Waiting for 'frontend' deployment to be available..."
+          kubectl get deployment frontend -n frontend || (echo "❌ Deployment 'frontend' not found!" && exit 1)
           kubectl wait --for=condition=available --timeout=300s deployment/frontend -n frontend
+
+      - name: Wait for Backend deployment
+        run: |
+          echo "Waiting for 'backend' deployment to be available..."
+          kubectl get deployment backend -n backend || (echo "❌ Deployment 'backend' not found!" && exit 1)
           kubectl wait --for=condition=available --timeout=300s deployment/backend -n backend
 
-      - name: Ensure Minikube is Ready
-        run: |
-          kubectl get nodes
-          kubectl wait --for=condition=Ready nodes --timeout=120s
-
-      - name: Install OPA Gatekeeper
+      - name: Add and Update Helm Repos
         run: |
           helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
           helm repo update
+
+      - name: Install OPA Gatekeeper
+        run: |
           helm upgrade --install gatekeeper gatekeeper/gatekeeper \
             --namespace gatekeeper-system \
             --create-namespace \
-            --timeout 300s \
-            --wait
+            --wait \
+            --timeout 300s
 
       - name: Apply OPA Policies
         run: |
@@ -85,6 +96,20 @@ jobs:
         with:
           name: zero-trust-security-report
           path: SECURITY-REPORT.md
+
+      - name: Update README with Security Summary
+        run: |
+          SUMMARY_CONTENT=$(cat SECURITY-REPORT.md)
+          # Escape special characters for sed
+          ESCAPED_SUMMARY=$(echo "$SUMMARY_CONTENT" | sed -e 's/[\/&]/\\&/g')
+          sed -i "/<!-- SECURITY_SUMMARY_START -->/,/<!-- SECURITY_SUMMARY_END -->/c\\<!-- SECURITY_SUMMARY_START -->\\n${ESCAPED_SUMMARY}\\n<!-- SECURITY_SUMMARY_END -->" README.md
+
+      - name: Commit updated README
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --quiet && git diff --staged --quiet || git commit -m "Docs: Update security summary in README.md"
 
       - name: Upload Full Logs & Manifests
         uses: actions/upload-artifact@v4
