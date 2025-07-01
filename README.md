@@ -68,6 +68,8 @@ zero-trust-istio-opa/
 ## Security Summary Snapshot
 
 <!-- SECURITY_SUMMARY_START -->
+# SECURITY-REPORT.md
+\n## Violations:
 <!-- SECURITY_SUMMARY_END -->
 
 ## Detailed Security Scan Results
