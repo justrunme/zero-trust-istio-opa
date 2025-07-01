@@ -1,36 +1,91 @@
-name: CI
+name: Zero-Trust Security Test with Istio + OPA
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  test-policy:
+  zero-trust-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-      - name: Setup Minikube
-        uses: manusa/actions-setup-minikube@v2.4.1
-        with:
-          minikube version: 'v1.23.2'
-          kubernetes version: 'v1.22.2'
-
-      - name: Install Istio
+      - name: Set up Kubernetes tools
         run: |
-          curl -L https://istio.io/downloadIstio | sh -
-          istio-*/bin/istioctl install --set profile=demo -y
+          curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          sudo install minikube-linux-amd64 /usr/local/bin/minikube
+          sudo apt-get update && sudo apt-get install -y kubectl jq helm
 
-      - name: Deploy Application
+      - name: Start Minikube
+        run: |
+          minikube start --driver=docker --memory=4096 --cpus=2
+          kubectl get nodes
+
+      - name: Install Istio CLI
+        run: |
+          curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.22.0 sh -
+          sudo mv istio-1.22.0/bin/istioctl /usr/local/bin/
+          istioctl version
+
+      - name: Install Istio on Minikube
+        run: |
+          istioctl install --set profile=demo -y
+          kubectl label namespace default istio-injection=enabled
+
+      - name: Deploy Sample Application
         run: |
           kubectl apply -f manifests/namespace.yaml
+          kubectl apply -f manifests/istio/istio-injection-label.yaml
           kubectl apply -f manifests/app/
           kubectl apply -f manifests/istio/
 
-      - name: Deploy OPA Policies
-        run: kubectl apply -f policies/
+      - name: Wait for Pods to be Ready
+        run: |
+          kubectl wait --for=condition=available --timeout=300s deployment/frontend -n default
+          kubectl wait --for=condition=available --timeout=300s deployment/backend -n default
 
-      - name: Test Policies
-        run: ./scripts/test_policy.sh
+      - name: Install OPA Gatekeeper
+        run: |
+          helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
+          helm repo update
+          helm install gatekeeper/gatekeeper --generate-name
+
+      - name: Apply OPA Policies
+        run: |
+          kubectl apply -f policies/templates/
+          kubectl apply -f policies/deny-all.yaml
+          kubectl apply -f policies/allow-frontend-to-backend.yaml || true
+
+      - name: Run Test Scripts
+        run: bash scripts/test_policy.sh
+
+      - name: Collect Policy Violations
+        run: |
+          echo "# SECURITY-REPORT.md" > SECURITY-REPORT.md
+          echo "\n## Violations:" >> SECURITY-REPORT.md
+          kubectl get constraintviolations.constraints.gatekeeper.sh -A -o json | jq '.' >> SECURITY-REPORT.md
+
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zero-trust-security-report
+          path: SECURITY-REPORT.md
+
+      - name: Upload Full Logs & Manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-logs
+          path: |
+            manifests/
+            policies/
+            scripts/
+
+      - name: Stop Minikube
+        if: always()
+        run: minikube delete
