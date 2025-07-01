@@ -41,17 +41,14 @@ jobs:
           istioctl install --set profile=demo -y
           kubectl label namespace default istio-injection=enabled
 
-      - name: Deploy Sample Application
+      - name: Deploy Sample Application and Wait for Ready
         run: |
           kubectl apply -f manifests/namespace.yaml
           kubectl apply -f manifests/istio/istio-injection-label.yaml
           kubectl apply -f manifests/app/
           kubectl apply -f manifests/istio/
-
-      - name: Wait for Pods to be Ready
-        run: |
-          kubectl wait --for=condition=available --timeout=300s deployment/frontend -n default
-          kubectl wait --for=condition=available --timeout=300s deployment/backend -n default
+          kubectl wait --for=condition=available --timeout=300s deployment/frontend -n frontend
+          kubectl wait --for=condition=available --timeout=300s deployment/backend -n backend
 
       - name: Install OPA Gatekeeper
         run: |
