@@ -1,5 +1,9 @@
 # Zero-Trust Visualization with Istio + Open Policy Agent (OPA)
 
+[![Case study](https://img.shields.io/badge/case-justrunme.com-111111)](https://justrunme.com/cases/zero-trust-service-mesh/)
+
+Case study: [Zero Trust Service Mesh](https://justrunme.com/cases/zero-trust-service-mesh/) · [Andrey Lesnikov](https://justrunme.com/)
+
 ## Project Goal
 
 This project demonstrates how to implement a "zero-trust" security model in a Kubernetes environment using Istio as a service mesh and Open Policy Agent (OPA) for policy enforcement. The project includes deploying microservices, observing their interactions, and applying security policies based on the "deny-by-default" principle.
