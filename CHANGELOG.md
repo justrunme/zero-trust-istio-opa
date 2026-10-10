@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- CI: download OPA/kind binaries to `$RUNNER_TEMP` (writing `./opa` failed because `opa/` is a directory).
 - Upgraded Istio to **1.31.1** (supported release) and removed the vendored `istio-1.26.2` tree; `istioctl` is downloaded by scripts/CI.
 - Pinned OPA Gatekeeper Helm chart to **3.23.1** and OPA/OPA-Envoy image to **1.21.1**.
 - Switched local/CI cluster bootstrap from Minikube to **kind** with node image `kindest/node:v1.35.8` (digest-pinned).

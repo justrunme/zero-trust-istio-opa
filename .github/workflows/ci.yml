@@ -26,9 +26,11 @@ jobs:
 
       - name: Install OPA
         run: |
-          curl -fsSL -o opa "https://openpolicyagent.org/downloads/v${OPA_VERSION}/opa_linux_amd64_static"
-          chmod +x opa
-          sudo mv opa /usr/local/bin/opa
+          # Do not write to ./opa — that path is the policy directory in this repo.
+          curl -fsSL -o "${RUNNER_TEMP}/opa" \
+            "https://openpolicyagent.org/downloads/v${OPA_VERSION}/opa_linux_amd64_static"
+          chmod +x "${RUNNER_TEMP}/opa"
+          sudo mv "${RUNNER_TEMP}/opa" /usr/local/bin/opa
           opa version
 
       - name: Run OPA unit tests
@@ -36,10 +38,10 @@ jobs:
 
       - name: Install Conftest
         run: |
-          curl -fsSL -o /tmp/conftest.tar.gz \
+          curl -fsSL -o "${RUNNER_TEMP}/conftest.tar.gz" \
             "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
-          tar -xzf /tmp/conftest.tar.gz -C /tmp conftest
-          sudo mv /tmp/conftest /usr/local/bin/conftest
+          tar -xzf "${RUNNER_TEMP}/conftest.tar.gz" -C "${RUNNER_TEMP}" conftest
+          sudo mv "${RUNNER_TEMP}/conftest" /usr/local/bin/conftest
           conftest --version
 
       - name: Conftest app manifests
@@ -47,10 +49,10 @@ jobs:
 
       - name: Install actionlint
         run: |
-          curl -fsSL -o /tmp/actionlint.tar.gz \
+          curl -fsSL -o "${RUNNER_TEMP}/actionlint.tar.gz" \
             "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
-          sudo mv /tmp/actionlint /usr/local/bin/actionlint
+          tar -xzf "${RUNNER_TEMP}/actionlint.tar.gz" -C "${RUNNER_TEMP}" actionlint
+          sudo mv "${RUNNER_TEMP}/actionlint" /usr/local/bin/actionlint
           actionlint -version
 
       - name: Lint GitHub Actions workflows
@@ -76,9 +78,10 @@ jobs:
 
       - name: Install kind
         run: |
-          curl -fsSL -o ./kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
+          curl -fsSL -o "${RUNNER_TEMP}/kind" \
+            "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          chmod +x "${RUNNER_TEMP}/kind"
+          sudo mv "${RUNNER_TEMP}/kind" /usr/local/bin/kind
           kind version
 
       - name: Create kind cluster
