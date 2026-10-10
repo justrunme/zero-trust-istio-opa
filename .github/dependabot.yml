@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: "/manifests/app"
+    schedule:
+      interval: weekly
+    groups:
+      app-images:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: "/manifests/opa"
+    schedule:
+      interval: weekly
+    groups:
+      opa-images:
+        patterns:
+          - "*"

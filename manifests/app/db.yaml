@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: db
-        image: busybox # Using a simple busybox image as a placeholder
+        image: busybox:1.37.0
         command: ['sh', '-c', 'echo "Database is running" && sleep 3600']
 ---
 apiVersion: v1

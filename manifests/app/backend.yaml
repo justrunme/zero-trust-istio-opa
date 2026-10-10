@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: httpd:latest # Using a simple httpd image as a placeholder
+        image: httpd:2.4.63
         ports:
         - containerPort: 80
 ---

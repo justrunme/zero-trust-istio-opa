@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opa
+  namespace: istio-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opa
+  namespace: istio-system
+  labels:
+    app: opa
+spec:
+  selector:
+    app: opa
+  ports:
+    - name: grpc
+      port: 9191
+      targetPort: 9191
+    - name: http
+      port: 8181
+      targetPort: 8181
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opa
+  namespace: istio-system
+  labels:
+    app: opa
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opa
+  template:
+    metadata:
+      labels:
+        app: opa
+      annotations:
+        # OPA itself does not need a sidecar for this demo.
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: opa
+      containers:
+        - name: opa
+          image: openpolicyagent/opa:1.21.1-envoy
+          args:
+            - run
+            - --server
+            - --addr=0.0.0.0:8181
+            - --diagnostic-addr=0.0.0.0:8282
+            - --set=plugins.envoy_ext_authz_grpc.addr=:9191
+            - --set=plugins.envoy_ext_authz_grpc.path=istio/authz/allow
+            - --set=decision_logs.console=true
+            - /policies/policy.rego
+          ports:
+            - name: grpc
+              containerPort: 9191
+            - name: http
+              containerPort: 8181
+          volumeMounts:
+            - name: policy
+              mountPath: /policies
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health?plugins
+              port: 8282
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: policy
+          configMap:
+            name: opa-policy
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opa-policy
+  namespace: istio-system
+data:
+  policy.rego: |
+    package istio.authz
+
+    import rego.v1
+
+    default allow := false
+
+    allow if {
+      count(input.parsed_path) > 1
+      input.parsed_path[1] == "healthz"
+    }
+
+    allow if {
+      input.attributes.request.http.method == "GET"
+      input.attributes.source.namespace == "frontend"
+      input.attributes.destination.namespace == "backend"
+    }
