@@ -26,6 +26,20 @@ Case study: [Zero Trust Service Mesh](https://justrunme.com/cases/zero-trust-ser
 ./scripts/test_policy.sh
 ```
 
+## Architecture
+
+```mermaid
+flowchart LR
+  Ingress[Istio Gateway] --> FE[manifests/app frontend]
+  FE -->|ALLOW AuthorizationPolicy| BE[manifests/app backend]
+  BE -.->|DENY default| DB[manifests/app db]
+  Mesh[PeerAuthentication STRICT mTLS] --- FE
+  Mesh --- BE
+  GK[OPA Gatekeeper policies] --> Admit[Deployment admission]
+  CI[.github/workflows/ci.yml] --> OPA[opa test + Conftest]
+  CI --> E2E[scripts/deploy_all.sh + test_policy.sh]
+```
+
 ## Project Goal
 
 This project demonstrates a deny-by-default zero-trust model on Kubernetes using
