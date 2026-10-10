@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: nginx:latest # Using a simple nginx image as a placeholder
+        image: nginx:1.27.4
         ports:
         - containerPort: 80
 ---

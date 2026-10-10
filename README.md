@@ -6,93 +6,118 @@ Case study: [Zero Trust Service Mesh](https://justrunme.com/cases/zero-trust-ser
 
 ## Project Goal
 
-This project demonstrates how to implement a "zero-trust" security model in a Kubernetes environment using Istio as a service mesh and Open Policy Agent (OPA) for policy enforcement. The project includes deploying microservices, observing their interactions, and applying security policies based on the "deny-by-default" principle.
+This project demonstrates a deny-by-default zero-trust model on Kubernetes using
+Istio for service-mesh mTLS and authorization, Open Policy Agent (OPA) Rego for
+external-authz style decisions, and OPA Gatekeeper for admission-time label
+constraints.
 
 ## Key Features
 
-*   **Microservices Deployment:** A simple application with `frontend`, `backend`, and `db` services.
-*   **Istio Integration:** Automatic sidecar injection for all services in the mesh.
-*   **OPA Policy Enforcement:** Using OPA Gatekeeper to enforce security policies.
-*   **Deny-by-Default:** A baseline policy that denies all traffic unless explicitly allowed.
-*   **Traffic Visualization:** Using Kiali and Prometheus/Grafana to visualize service-to-service communication and policy enforcement.
-*   **CI/CD Pipeline:** A GitHub Actions workflow to automate testing of security policies.
+* **Microservices:** `frontend`, `backend`, and `db` workloads in separate namespaces.
+* **Istio:** Sidecar injection, STRICT mTLS (`PeerAuthentication`), and
+  `AuthorizationPolicy` allow-lists (ingress→frontend, frontend→backend).
+* **OPA Gatekeeper:** ConstraintTemplate + constraint requiring an `app` label on Deployments.
+* **OPA Rego / OPA-Envoy:** Unit-tested `opa/policy.rego` (optional Envoy deployment under `manifests/opa/`).
+* **CI:** GitHub Actions runs `opa test`, Conftest, actionlint, then a kind-based e2e that asserts **403** (denied) and **200** (allowed).
+
+## Pinned versions
+
+See `scripts/versions.env` (kept in sync with `.github/workflows/ci.yml`):
+
+| Component | Version |
+|-----------|---------|
+| Istio | 1.31.1 |
+| OPA / OPA-Envoy | 1.21.1 |
+| Gatekeeper (Helm chart) | 3.23.1 |
+| kind | v0.33.0 |
+| kind node image | kindest/node:v1.35.8 (digest-pinned) |
 
 ## Technologies
 
-*   **Kubernetes:** Minikube for local development.
-*   **Istio:** Service mesh for traffic management, security, and observability.
-*   **Open Policy Agent (OPA):** Gatekeeper for policy enforcement.
-*   **Kiali:** Service mesh observability and visualization.
-*   **Jaeger:** Distributed tracing.
-*   **Prometheus & Grafana:** Metrics collection and visualization.
-*   **GitHub Actions:** CI/CD for automated policy testing.
-*   **curl/hey/k6:** For load testing and policy verification.
+* **Kubernetes:** kind for local and CI clusters
+* **Istio:** traffic management, mTLS, AuthorizationPolicy
+* **OPA Gatekeeper:** admission policy enforcement
+* **OPA:** Rego unit tests; optional OPA-Envoy deployment
+* **Kiali / Jaeger / Prometheus / Grafana:** available via Istio demo profile addons (optional)
+* **GitHub Actions:** policy unit tests + kind e2e
 
 ## Project Structure
 
 ```
 zero-trust-istio-opa/
-├── README.md                          # Project description, goals, and policy examples
+├── README.md
+├── CHANGELOG.md
+├── SECURITY-REPORT.md
+├── sample-summary.md
 ├── .github/
+│   ├── dependabot.yml
 │   └── workflows/
-│       └── ci.yml                     # GitHub Actions: policy checks and reports
+│       └── ci.yml
 ├── manifests/
-│   ├── namespace.yaml                 # Service namespace separation
+│   ├── kind/
+│   │   └── cluster.yaml              # kind cluster (K8s 1.35.8 node image)
+│   ├── namespace.yaml
 │   ├── app/
-│   │   ├── frontend.yaml              # Frontend service
-│   │   ├── backend.yaml               # Backend service
-│   │   └── db.yaml                    # Database (can be a mock)
-│   └── istio/
-│       ├── gateway.yaml               # Istio Gateway
-│       ├── virtualservice.yaml       # VirtualService (routing)
-│       ├── destinationrule.yaml      # DestinationRule (for Istio)
-│       └── istio-injection-label.yaml # Enable sidecar injection
+│   │   ├── frontend.yaml
+│   │   ├── backend.yaml
+│   │   └── db.yaml
+│   ├── istio/
+│   │   ├── gateway.yaml
+│   │   ├── virtualservice.yaml
+│   │   ├── destinationrule.yaml
+│   │   ├── istio-injection-label.yaml
+│   │   ├── peerauthentication.yaml
+│   │   ├── authorizationpolicy-allow-ingress-frontend.yaml
+│   │   └── authorizationpolicy-allow-frontend-backend.yaml
+│   └── opa/
+│       ├── config.yaml               # optional OPA-Envoy ConfigMap
+│       └── deployment.yaml           # optional OPA-Envoy Deployment
 ├── policies/
-│   ├── allow-frontend-to-backend.yaml  # Example allow policy
-│   ├── deny-all.yaml                   # Deny all by default
-│   └── templates/
-│       └── k8srequiredlabels.yaml      # OPA Gatekeeper template
+│   ├── templates/
+│   │   └── k8srequiredlabels.yaml    # Gatekeeper ConstraintTemplate
+│   └── constraints/
+│       └── must-have-app-label.yaml
 ├── opa/
-│   ├── policy.rego                   # Rego policy (if not using Gatekeeper)
-│   └── config.yaml                   # OPA External Authz configuration
+│   ├── policy.rego
+│   └── policy_test.rego
+├── policy/
+│   └── conftest/
+│       └── deployment.rego
 ├── scripts/
-│   ├── test_policy.sh                # curl/hey/k6 script for testing
-│   └── deploy_all.sh                 # Quick deployment for Minikube + Istio + App
-├── dashboards/
-│   ├── grafana.json                  # (optional) Grafana dashboard export
-│   └── kiali-config.yaml             # Kiali configuration (if needed)
-├── SECURITY-REPORT.md                # Summary: which policies were triggered, what was blocked
-└── sample-summary.md                 # Sample security summary for README.md
+│   ├── versions.env
+│   ├── deploy_all.sh                 # kind + Istio + Gatekeeper + app
+│   └── test_policy.sh                # asserts 200 allowed / 403 denied
+└── dashboards/
+    ├── grafana.json
+    └── kiali-config.yaml
 ```
+
+## Quick start (local)
+
+Requirements: Docker, kubectl, Helm, curl.
+
+```bash
+./scripts/deploy_all.sh
+./scripts/test_policy.sh
+```
+
+`test_policy.sh` fails the process unless:
+
+1. A client in `frontend` (default SA) receives **HTTP 200** from `backend`.
+2. A client in `db` receives **HTTP 403** from `backend`.
 
 ## CI/CD Status
 
 [![CI](https://github.com/justrunme/zero-trust-istio-opa/actions/workflows/ci.yml/badge.svg)](https://github.com/justrunme/zero-trust-istio-opa/actions/workflows/ci.yml)
 
+Workflow jobs:
+
+1. **lint-and-unit** — `opa test`, Conftest on `manifests/app`, actionlint
+2. **zero-trust-e2e** — kind + Istio + Gatekeeper + `scripts/test_policy.sh`
+
 ## Security Summary Snapshot
 
 <!-- SECURITY_SUMMARY_START -->
-# SECURITY-REPORT.md
-\n## Violations:
+See the `zero-trust-security-report` artifact from the latest CI run for live
+AuthorizationPolicy and Gatekeeper status. `sample-summary.md` has a static example.
 <!-- SECURITY_SUMMARY_END -->
-
-## Detailed Security Scan Results
-
-### Trivy Scan Results
-
-```
-# Trivy scan results will be inserted here by CI
-```
-
-### Kubescape Scan Results
-
-```
-# Kubescape scan results will be inserted here by CI
-```
-
-### Prowler Scan Results
-
-```
-# Prowler scan results will be inserted here by CI
-```
-

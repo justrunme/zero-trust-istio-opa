@@ -1,13 +1,19 @@
 package istio.authz
 
-default allow = false
+import rego.v1
 
-allow {
-    input.parsed_path[1] == "healthz"
+# Deny by default; only explicit allow rules may permit traffic.
+default allow := false
+
+# Health checks are always permitted.
+allow if {
+	count(input.parsed_path) > 1
+	input.parsed_path[1] == "healthz"
 }
 
-allow {
-    input.attributes.request.http.method == "GET"
-    input.attributes.source.namespace == "frontend"
-    input.attributes.destination.namespace == "backend"
+# Frontend may call backend with GET.
+allow if {
+	input.attributes.request.http.method == "GET"
+	input.attributes.source.namespace == "frontend"
+	input.attributes.destination.namespace == "backend"
 }

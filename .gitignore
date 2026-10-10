@@ -1,0 +1,14 @@
+# Downloaded toolchains (install via scripts/deploy_all.sh or CI)
+istio-*/
+!manifests/istio/
+.istioctl/
+
+# Local kind / kube caches
+.kube/
+*.kubeconfig
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

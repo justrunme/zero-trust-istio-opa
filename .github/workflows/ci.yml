@@ -7,122 +7,156 @@ on:
     branches: [main]
   workflow_dispatch:
 
-jobs:
-  zero-trust-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+env:
+  ISTIO_VERSION: "1.31.1"
+  GATEKEEPER_CHART_VERSION: "3.23.1"
+  OPA_VERSION: "1.21.1"
+  KIND_VERSION: "v0.33.0"
+  KIND_NODE_IMAGE: "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
+  CONFTEST_VERSION: "0.71.1"
+  ACTIONLINT_VERSION: "1.7.12"
 
+jobs:
+  lint-and-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
-      - name: Set up Kubernetes tools
+      - name: Install OPA
         run: |
-          curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-          sudo install minikube-linux-amd64 /usr/local/bin/minikube
-          sudo apt-get update && sudo apt-get install -y kubectl jq
+          # Do not write to ./opa — that path is the policy directory in this repo.
+          curl -fsSL -o "${RUNNER_TEMP}/opa" \
+            "https://openpolicyagent.org/downloads/v${OPA_VERSION}/opa_linux_amd64_static"
+          chmod +x "${RUNNER_TEMP}/opa"
+          sudo mv "${RUNNER_TEMP}/opa" /usr/local/bin/opa
+          opa version
+
+      - name: Run OPA unit tests
+        run: opa test opa/ -v
+
+      - name: Install Conftest
+        run: |
+          curl -fsSL -o "${RUNNER_TEMP}/conftest.tar.gz" \
+            "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          tar -xzf "${RUNNER_TEMP}/conftest.tar.gz" -C "${RUNNER_TEMP}" conftest
+          sudo mv "${RUNNER_TEMP}/conftest" /usr/local/bin/conftest
+          conftest --version
+
+      - name: Conftest app manifests
+        run: conftest test manifests/app/ -p policy/conftest
+
+      - name: Install actionlint
+        run: |
+          curl -fsSL -o "${RUNNER_TEMP}/actionlint.tar.gz" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          tar -xzf "${RUNNER_TEMP}/actionlint.tar.gz" -C "${RUNNER_TEMP}" actionlint
+          sudo mv "${RUNNER_TEMP}/actionlint" /usr/local/bin/actionlint
+          actionlint -version
+
+      - name: Lint GitHub Actions workflows
+        run: actionlint
+
+  zero-trust-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: lint-and-unit
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: "v1.35.8"
+
       - name: Install Helm
-        run: |
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        uses: azure/setup-helm@v5
+        with:
+          version: "v3.19.0"
 
-      - name: Start Minikube
+      - name: Install kind
         run: |
-          minikube start --driver=docker --memory=4096 --cpus=2
-          kubectl get nodes
+          curl -fsSL -o "${RUNNER_TEMP}/kind" \
+            "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          chmod +x "${RUNNER_TEMP}/kind"
+          sudo mv "${RUNNER_TEMP}/kind" /usr/local/bin/kind
+          kind version
 
-      - name: Install Istio CLI
+      - name: Create kind cluster
         run: |
-          curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.22.0 sh -
-          sudo mv istio-1.22.0/bin/istioctl /usr/local/bin/
-          istioctl version
+          kind create cluster --config manifests/kind/cluster.yaml --image "${KIND_NODE_IMAGE}"
+          kubectl get nodes -o wide
 
-      - name: Install Istio on Minikube
+      - name: Install Istio
         run: |
+          curl -fsSL https://istio.io/downloadIstio | ISTIO_VERSION="${ISTIO_VERSION}" sh -
+          sudo mv "istio-${ISTIO_VERSION}/bin/istioctl" /usr/local/bin/istioctl
+          istioctl version --remote=false
           istioctl install --set profile=demo -y
-          kubectl label namespace default istio-injection=enabled
+          kubectl -n istio-system wait --for=condition=available --timeout=300s deployment/istiod
 
-      - name: Deploy Sample Application
+      - name: Deploy application and mesh policies
         run: |
           kubectl apply -f manifests/namespace.yaml
           kubectl apply -f manifests/istio/istio-injection-label.yaml
           kubectl apply -f manifests/app/
           kubectl apply -f manifests/istio/
-
-      - name: Wait for Minikube to be Ready
-        run: kubectl get nodes
-
-      - name: Wait for Frontend deployment
-        run: |
-          echo "Waiting for 'frontend' deployment to be available..."
-          kubectl get deployment frontend -n frontend || (echo "❌ Deployment 'frontend' not found!" && exit 1)
-          kubectl wait --for=condition=available --timeout=300s deployment/frontend -n frontend
-
-      - name: Wait for Backend deployment
-        run: |
-          echo "Waiting for 'backend' deployment to be available..."
-          kubectl get deployment backend -n backend || (echo "❌ Deployment 'backend' not found!" && exit 1)
-          kubectl wait --for=condition=available --timeout=300s deployment/backend -n backend
-
-      - name: Add and Update Helm Repos
-        run: |
-          helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
-          helm repo update
+          kubectl -n frontend wait --for=condition=available --timeout=300s deployment/frontend
+          kubectl -n backend wait --for=condition=available --timeout=300s deployment/backend
 
       - name: Install OPA Gatekeeper
         run: |
+          helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
+          helm repo update
           helm upgrade --install gatekeeper gatekeeper/gatekeeper \
             --namespace gatekeeper-system \
             --create-namespace \
+            --version "${GATEKEEPER_CHART_VERSION}" \
             --wait \
             --timeout 300s
 
-      - name: Apply OPA Policies
+      - name: Apply Gatekeeper policies
         run: |
           kubectl apply -f policies/templates/
-          kubectl apply -f policies/deny-all.yaml
-          kubectl apply -f policies/allow-frontend-to-backend.yaml || true
+          kubectl apply -f policies/constraints/
 
-      - name: Run Test Scripts
+      - name: Assert unauthorized denied (403) and authorized allowed (200)
         run: bash scripts/test_policy.sh
 
-      - name: Collect Policy Violations
+      - name: Collect policy status
+        if: always()
         run: |
-          echo "# SECURITY-REPORT.md" > SECURITY-REPORT.md
-          echo "\n## Violations:" >> SECURITY-REPORT.md
-          kubectl get constraintviolations.constraints.gatekeeper.sh -A -o json | jq '.' >> SECURITY-REPORT.md
+          {
+            echo "# SECURITY-REPORT.md"
+            echo ""
+            echo "## Istio AuthorizationPolicies"
+            kubectl get authorizationpolicy -A -o yaml
+            echo ""
+            echo "## Gatekeeper constraints"
+            kubectl get k8srequiredlabels.constraints.gatekeeper.sh -A -o yaml || \
+              kubectl get constrainttemplate -A
+          } > SECURITY-REPORT.md
 
       - name: Upload Security Report
-        uses: actions/upload-artifact@v4
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
           name: zero-trust-security-report
           path: SECURITY-REPORT.md
 
-      - name: Update README with Security Summary
-        run: |
-          awk \
-            'BEGIN {inside=0}\
-            /<!-- SECURITY_SUMMARY_START -->/ {print; while((getline line < "SECURITY-REPORT.md") > 0) print line; inside=1; next}\
-            /<!-- SECURITY_SUMMARY_END -->/ {inside=0}\
-            !inside
-          ' README.md > README.tmp && mv README.tmp README.md
-
-      - name: Commit updated SECURITY-REPORT.md and README.md
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add SECURITY-REPORT.md README.md || echo "No files to add"
-          git commit -m "docs: update SECURITY-REPORT.md and README.md" || echo "Nothing to commit"
-          git push origin main
-
-      - name: Upload Full Logs & Manifests
-        uses: actions/upload-artifact@v4
+      - name: Upload manifests snapshot
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
           name: deployment-logs
           path: |
             manifests/
             policies/
             scripts/
+            opa/
 
-      - name: Stop Minikube
+      - name: Delete kind cluster
         if: always()
-        run: minikube delete
+        run: kind delete cluster --name zero-trust
