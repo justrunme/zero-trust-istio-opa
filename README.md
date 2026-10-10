@@ -1,8 +1,44 @@
-# Zero-Trust Visualization with Istio + Open Policy Agent (OPA)
+# Zero-Trust with Istio + OPA
 
-[![Case study](https://img.shields.io/badge/case-justrunme.com-111111)](https://justrunme.com/cases/zero-trust-service-mesh/)
+Deny-by-default zero-trust service mesh on Kubernetes using Istio and Open Policy Agent.
+
+[![CI](https://github.com/justrunme/zero-trust-istio-opa/actions/workflows/ci.yml/badge.svg)](https://github.com/justrunme/zero-trust-istio-opa/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/justrunme/zero-trust-istio-opa?display_name=tag)](https://github.com/justrunme/zero-trust-istio-opa/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Case study: [Zero Trust Service Mesh](https://justrunme.com/cases/zero-trust-service-mesh/) · [Andrey Lesnikov](https://justrunme.com/)
+
+## What it does
+
+- Enforces STRICT mTLS and `AuthorizationPolicy` allow-lists across frontend / backend / db namespaces
+- Adds OPA Gatekeeper admission constraints (required `app` label) and unit-tested Rego policy
+- Proves allow (HTTP 200) and deny (HTTP 403) paths in Kind e2e via `scripts/test_policy.sh`
+
+## Why
+
+- Mesh mTLS alone is not zero-trust; authorization and admission policy close the remaining gaps
+- Policy should fail CI when denied paths start succeeding
+
+## Quickstart
+
+```bash
+./scripts/deploy_all.sh
+./scripts/test_policy.sh
+```
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Ingress[Istio Gateway] --> FE[manifests/app frontend]
+  FE -->|ALLOW AuthorizationPolicy| BE[manifests/app backend]
+  BE -.->|DENY default| DB[manifests/app db]
+  Mesh[PeerAuthentication STRICT mTLS] --- FE
+  Mesh --- BE
+  GK[OPA Gatekeeper policies] --> Admit[Deployment admission]
+  CI[.github/workflows/ci.yml] --> OPA[opa test + Conftest]
+  CI --> E2E[scripts/deploy_all.sh + test_policy.sh]
+```
 
 ## Project Goal
 
