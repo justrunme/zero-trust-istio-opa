@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: httpd:2.4.63
+        image: httpd:2.4.69
         ports:
         - containerPort: 80
 ---
