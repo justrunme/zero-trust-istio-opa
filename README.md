@@ -6,6 +6,7 @@ Deny-by-default zero-trust service mesh on Kubernetes using Istio and Open Polic
 [![Release](https://img.shields.io/github/v/release/justrunme/zero-trust-istio-opa?display_name=tag)](https://github.com/justrunme/zero-trust-istio-opa/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Case study](https://img.shields.io/badge/case-justrunme.com-111111)](https://justrunme.com/cases/zero-trust-service-mesh/)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/justrunme/zero-trust-istio-opa/badge)](https://securityscorecards.dev/viewer/?uri=github.com/justrunme/zero-trust-istio-opa)
 
 Case study: [Zero Trust Service Mesh](https://justrunme.com/cases/zero-trust-service-mesh/) · [Andrey Lesnikov](https://justrunme.com/)
 
