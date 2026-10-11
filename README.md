@@ -122,15 +122,15 @@ Requirements: Docker, kubectl, Helm, curl.
 2. DB SA → backend returns **HTTP 403**
 3. Frontend SA → backend `/admin` returns **HTTP 403** (OPA)
 4. Backend SA → db returns **HTTP 200**; frontend SA → db returns **HTTP 403**
-5. Plaintext client (no sidecar) cannot get **HTTP 200** from backend
+5. Plaintext client (no sidecar) is explicitly rejected (TLS/reset or HTTP 403/503) — timeouts/DNS do not count as PASS
 6. Gatekeeper rejects a Deployment missing `app`
-7. Egress from the mesh to `https://example.com` is blocked
+7. Allowlisted egress (`https://httpbin.org`) succeeds; non-allowlisted `https://example.com` is explicitly blocked (403/502/503 or refuse/reset)
 
 ## CI/CD Status
 
 Workflow jobs:
 
-1. **lint-and-unit** — `opa test` (≥90% coverage), Conftest on app + mesh, actionlint
+1. **lint-and-unit** — `opa test` (≥90% coverage), Conftest on app + mesh, actionlint, classifier self-test
 2. **zero-trust-e2e** — kind + Istio (OPA extension provider) + OPA-Envoy + Gatekeeper + `scripts/test_policy.sh`
 
 ## Security Summary Snapshot

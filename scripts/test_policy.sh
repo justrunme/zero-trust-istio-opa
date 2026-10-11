@@ -4,8 +4,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/http_probe_classify.sh
+source "${ROOT}/scripts/lib/http_probe_classify.sh"
+
 BACKEND_URL="http://backend.backend.svc.cluster.local"
 DB_URL="http://db.db.svc.cluster.local/"
+ALLOWED_EGRESS_URL="https://httpbin.org/get"
+DENIED_EGRESS_URL="https://example.com/"
 CURL_IMAGE="curlimages/curl:8.12.1"
 BAD_DEPLOY_FIXTURE="${ROOT}/manifests/fixtures/bad-deployment-no-app-label.yaml"
 
@@ -42,14 +47,39 @@ client_container() {
   kubectl -n "${ns}" get pod "${pod}" -o jsonpath='{.spec.containers[0].name}'
 }
 
+# Capture HTTP code and curl exit separately. Prints: "<http_code> <curl_exit>".
+# kubectl exec propagates the remote curl exit code. Pod/kubectl failures are
+# surfaced as a non-zero curl_exit with http_code 000 — callers must not treat
+# that as a policy PASS without classify_negative_probe.
+probe_http() {
+  local ns="$1"
+  local pod="$2"
+  local url="$3"
+  local container out rc
+  container="$(client_container "${ns}" "${pod}")"
+  set +e
+  out="$(kubectl -n "${ns}" exec "${pod}" -c "${container}" -- \
+    curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 15 "${url}" 2>/dev/null)"
+  rc=$?
+  set -e
+  if [[ -z "${out}" ]]; then
+    out="000"
+  fi
+  # Trim whitespace/newlines from http_code.
+  out="$(printf '%s' "${out}" | tr -d '[:space:]')"
+  if [[ ! "${out}" =~ ^[0-9]+$ ]]; then
+    out="000"
+  fi
+  echo "${out} ${rc}"
+}
+
 http_code() {
   local ns="$1"
   local pod="$2"
   local url="$3"
-  local container
-  container="$(client_container "${ns}" "${pod}")"
-  kubectl -n "${ns}" exec "${pod}" -c "${container}" -- \
-    curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 15 "${url}" 2>/dev/null || echo "000"
+  local result
+  result="$(probe_http "${ns}" "${pod}" "${url}")"
+  echo "${result%% *}"
 }
 
 wait_for_code() {
@@ -76,23 +106,85 @@ wait_for_code() {
   return 1
 }
 
-assert_not_code() {
+# Negative mTLS assert: PASS only on explicit rejection (TLS/reset or 403/503).
+# DNS failure, timeout, missing pod, or bare non-200 must FAIL (no masking).
+assert_mtls_plaintext_rejected() {
   local ns="$1"
   local pod="$2"
   local url="$3"
-  local forbidden="$4"
-  local label="$5"
-  local code=""
+  local label="$4"
+  local http_code curl_exit classification
+
+  if ! kubectl -n "${ns}" get pod "${pod}" >/dev/null 2>&1; then
+    echo "FAIL: ${label}: pod ${ns}/${pod} does not exist" >&2
+    return 1
+  fi
+
   for attempt in $(seq 1 18); do
-    code="$(http_code "${ns}" "${pod}" "${url}")"
-    echo "${label} attempt ${attempt}: HTTP ${code}"
-    if [[ "${code}" != "${forbidden}" && "${code}" != "" ]]; then
-      echo "PASS: ${label} did not return ${forbidden} (got ${code})"
-      return 0
-    fi
+    read -r http_code curl_exit < <(probe_http "${ns}" "${pod}" "${url}")
+    classification="$(classify_negative_probe mtls "${http_code}" "${curl_exit}")"
+    echo "${label} attempt ${attempt}: HTTP ${http_code} curl_exit ${curl_exit} -> ${classification}"
+
+    case "${classification}" in
+      pass)
+        echo "PASS: ${label} explicit mTLS rejection (HTTP ${http_code}, curl_exit ${curl_exit})"
+        return 0
+        ;;
+      fail_allowed)
+        echo "FAIL: ${label} unexpectedly allowed (HTTP 200)" >&2
+        return 1
+        ;;
+      fail_infra)
+        echo "FAIL: ${label} infra/error signal, not an explicit mTLS rejection (HTTP ${http_code}, curl_exit ${curl_exit})" >&2
+        return 1
+        ;;
+      inconclusive)
+        ;;
+    esac
     sleep 2
   done
-  echo "FAIL: ${label} unexpectedly returned ${forbidden}" >&2
+  echo "FAIL: ${label} no explicit mTLS rejection after retries (last HTTP ${http_code}, curl_exit ${curl_exit})" >&2
+  return 1
+}
+
+# Negative egress assert: PASS only on explicit block (403/502/503 or refuse/reset).
+# Timeout/DNS must FAIL — they do not prove REGISTRY_ONLY.
+assert_egress_blocked() {
+  local ns="$1"
+  local pod="$2"
+  local url="$3"
+  local label="$4"
+  local http_code curl_exit classification
+
+  if ! kubectl -n "${ns}" get pod "${pod}" >/dev/null 2>&1; then
+    echo "FAIL: ${label}: pod ${ns}/${pod} does not exist" >&2
+    return 1
+  fi
+
+  for attempt in $(seq 1 18); do
+    read -r http_code curl_exit < <(probe_http "${ns}" "${pod}" "${url}")
+    classification="$(classify_negative_probe egress "${http_code}" "${curl_exit}")"
+    echo "${label} attempt ${attempt}: HTTP ${http_code} curl_exit ${curl_exit} -> ${classification}"
+
+    case "${classification}" in
+      pass)
+        echo "PASS: ${label} explicit egress block (HTTP ${http_code}, curl_exit ${curl_exit})"
+        return 0
+        ;;
+      fail_allowed)
+        echo "FAIL: ${label} unexpectedly reached ${url} (HTTP 200)" >&2
+        return 1
+        ;;
+      fail_infra)
+        echo "FAIL: ${label} infra/error signal, not an explicit egress block (HTTP ${http_code}, curl_exit ${curl_exit})" >&2
+        return 1
+        ;;
+      inconclusive)
+        ;;
+    esac
+    sleep 2
+  done
+  echo "FAIL: ${label} no explicit egress block after retries (last HTTP ${http_code}, curl_exit ${curl_exit})" >&2
   return 1
 }
 
@@ -127,7 +219,7 @@ kubectl -n plaintext run plain-client \
   --labels="app=plain-client" \
   --command -- sleep 3600
 kubectl -n plaintext wait --for=condition=Ready --timeout=180s pod/plain-client
-assert_not_code plaintext plain-client "${BACKEND_URL}/" 200 "plaintext-mtls"
+assert_mtls_plaintext_rejected plaintext plain-client "${BACKEND_URL}/" "plaintext-mtls"
 
 echo "=== Test 7: Gatekeeper denies Deployment without app label ==="
 set +e
@@ -145,14 +237,11 @@ if ! grep -Eqi 'denied|violation|failed|forbidden|admit' <<<"${gk_out}"; then
 fi
 echo "PASS: Gatekeeper denied unlabeled Deployment"
 
-echo "=== Test 8: egress to non-allowlisted host blocked (REGISTRY_ONLY) ==="
+echo "=== Test 8a: egress positive control — allowlisted host must succeed ==="
+wait_for_code frontend auth-client "${ALLOWED_EGRESS_URL}" 200 "egress-allow-httpbin"
+
+echo "=== Test 8b: egress to non-allowlisted host blocked (REGISTRY_ONLY) ==="
 # example.com is not in the ServiceEntry allowlist; REGISTRY_ONLY must block it.
-egress_code="$(http_code frontend auth-client "https://example.com/")"
-echo "egress example.com HTTP ${egress_code}"
-if [[ "${egress_code}" == "200" ]]; then
-  echo "FAIL: egress to example.com unexpectedly succeeded" >&2
-  exit 1
-fi
-echo "PASS: egress to non-allowlisted host blocked (HTTP ${egress_code})"
+assert_egress_blocked frontend auth-client "${DENIED_EGRESS_URL}" "egress-deny-example"
 
 echo "All policy checks passed."
