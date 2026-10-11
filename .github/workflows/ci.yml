@@ -141,7 +141,7 @@ jobs:
           kubectl apply -f policies/templates/
           kubectl apply -f policies/constraints/
           # Wait until the constraint is visible to the admission webhook.
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if kubectl get k8srequiredlabels.constraints.gatekeeper.sh must-have-app-label >/dev/null 2>&1; then
               echo "Gatekeeper constraint ready"
               break
