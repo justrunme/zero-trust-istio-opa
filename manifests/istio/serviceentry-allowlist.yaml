@@ -1,0 +1,16 @@
+# Explicit external allowlist. Hosts not listed here (and not in the
+# Kubernetes service registry) are blocked by Sidecar REGISTRY_ONLY.
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: allow-httpbin
+  namespace: frontend
+spec:
+  hosts:
+    - httpbin.org
+  location: MESH_EXTERNAL
+  ports:
+    - number: 443
+      name: https
+      protocol: HTTPS
+  resolution: DNS

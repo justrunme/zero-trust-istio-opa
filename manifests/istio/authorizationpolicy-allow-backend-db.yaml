@@ -1,0 +1,18 @@
+# Only the backend workload identity may reach db.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-backend-to-db
+  namespace: db
+spec:
+  selector:
+    matchLabels:
+      app: db
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/backend/sa/backend"]
+      to:
+        - operation:
+            methods: ["GET", "HEAD"]

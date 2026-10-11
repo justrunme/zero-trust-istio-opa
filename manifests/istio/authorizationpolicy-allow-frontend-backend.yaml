@@ -9,9 +9,15 @@ spec:
       app: backend
   action: ALLOW
   rules:
+    # Frontend workload identity may call allowlisted methods.
     - from:
         - source:
-            principals: ["cluster.local/ns/frontend/sa/default"]
+            principals: ["cluster.local/ns/frontend/sa/frontend"]
       to:
         - operation:
             methods: ["GET", "HEAD"]
+    # Exact healthz path for probes (still gated by OPA CUSTOM policy).
+    - to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/healthz"]

@@ -1,0 +1,22 @@
+# Explicit deny-by-default: empty ALLOW rules deny all traffic in the namespace
+# unless a more specific AuthorizationPolicy grants access.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: frontend
+spec: {}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: backend
+spec: {}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: db
+spec: {}

@@ -70,31 +70,13 @@ spec:
               port: 8282
             initialDelaySeconds: 5
             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8282
+            initialDelaySeconds: 10
+            periodSeconds: 20
       volumes:
         - name: policy
           configMap:
             name: opa-policy
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: opa-policy
-  namespace: istio-system
-data:
-  policy.rego: |
-    package istio.authz
-
-    import rego.v1
-
-    default allow := false
-
-    allow if {
-      count(input.parsed_path) > 1
-      input.parsed_path[1] == "healthz"
-    }
-
-    allow if {
-      input.attributes.request.http.method == "GET"
-      input.attributes.source.namespace == "frontend"
-      input.attributes.destination.namespace == "backend"
-    }

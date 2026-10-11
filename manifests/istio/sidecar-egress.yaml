@@ -1,0 +1,28 @@
+# Restrict outbound traffic to hosts known to the service registry
+# (Kubernetes Services + explicit ServiceEntry allowlist).
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: default
+  namespace: frontend
+spec:
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: default
+  namespace: backend
+spec:
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: default
+  namespace: db
+spec:
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY
