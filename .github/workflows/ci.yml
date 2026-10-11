@@ -2,7 +2,7 @@ name: Zero-Trust Security Test with Istio + OPA
 
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "fix/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -67,6 +67,9 @@ jobs:
 
       - name: Lint GitHub Actions workflows
         run: actionlint
+
+      - name: Self-test HTTP probe classifiers
+        run: bash scripts/test_http_probe_classify.sh
 
   zero-trust-e2e:
     runs-on: ubuntu-latest
