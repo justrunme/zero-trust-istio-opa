@@ -9,6 +9,8 @@ AuthorizationPolicy, OPA as an Istio external authorizer, and Gatekeeper admissi
 [![Case study](https://img.shields.io/badge/case-justrunme.com-111111)](https://justrunme.com/cases/zero-trust-service-mesh/)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/justrunme/zero-trust-istio-opa/badge)](https://securityscorecards.dev/viewer/?uri=github.com/justrunme/zero-trust-istio-opa)
 
+Evidence: [docs/EVIDENCE.md](docs/EVIDENCE.md)
+
 Case study: [Zero Trust Service Mesh](https://justrunme.com/cases/zero-trust-service-mesh/) · [Andrey Lesnikov](https://justrunme.com/)
 
 ## What it does
