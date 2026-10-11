@@ -10,7 +10,10 @@ source "${ROOT}/scripts/lib/http_probe_classify.sh"
 BACKEND_URL="http://backend.backend.svc.cluster.local"
 DB_URL="http://db.db.svc.cluster.local/"
 ALLOWED_EGRESS_URL="https://httpbin.org/get"
-DENIED_EGRESS_URL="https://example.com/"
+# HTTP (not HTTPS): REGISTRY_ONLY answers unknown HTTP hosts with an explicit
+# Envoy 502 from BlackHoleCluster. HTTPS to a missing ServiceEntry often surfaces
+# only as curl exit 35 (TLS error), which is not an accepted egress PASS signal.
+DENIED_EGRESS_URL="http://example.com/"
 CURL_IMAGE="curlimages/curl:8.12.1"
 BAD_DEPLOY_FIXTURE="${ROOT}/manifests/fixtures/bad-deployment-no-app-label.yaml"
 

@@ -53,7 +53,9 @@ assert_class egress 200 0 fail_allowed "NEGATIVE: egress HTTP 200 must fail (all
 assert_class egress 000 28 fail_infra "NEGATIVE: egress timeout (curl 28) must fail"
 assert_class egress 000 6 fail_infra "NEGATIVE: egress DNS failure (curl 6) must fail"
 assert_class egress 000 0 inconclusive "NEGATIVE: egress bare 000 without refuse/reset must not pass"
-assert_class egress 000 35 inconclusive "NEGATIVE: egress TLS error alone is not a REGISTRY_ONLY block signal"
+# NEGATIVE: HTTPS-to-blackhole often yields curl 35; that must not count as PASS
+# (egress deny probes use HTTP so Envoy can return 502 instead).
+assert_class egress 000 35 inconclusive "NEGATIVE: egress TLS error (curl 35) alone is not an explicit block"
 assert_class egress "" 56 fail_infra "NEGATIVE: empty http_code is infra failure"
 
 echo "=== classify_negative_probe: bad inputs ==="

@@ -124,7 +124,7 @@ Requirements: Docker, kubectl, Helm, curl.
 4. Backend SA → db returns **HTTP 200**; frontend SA → db returns **HTTP 403**
 5. Plaintext client (no sidecar) is explicitly rejected (TLS/reset or HTTP 403/503) — timeouts/DNS do not count as PASS
 6. Gatekeeper rejects a Deployment missing `app`
-7. Allowlisted egress (`https://httpbin.org`) succeeds; non-allowlisted `https://example.com` is explicitly blocked (403/502/503 or refuse/reset)
+7. Allowlisted egress (`https://httpbin.org`) succeeds; non-allowlisted `http://example.com` is explicitly blocked (403/502/503 or refuse/reset)
 
 ## CI/CD Status
 
