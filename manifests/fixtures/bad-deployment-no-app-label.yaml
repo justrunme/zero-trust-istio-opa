@@ -1,0 +1,20 @@
+# Intentionally missing metadata.labels.app — Gatekeeper must deny this.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unlabeled-workload
+  namespace: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: unlabeled-workload
+  template:
+    metadata:
+      labels:
+        name: unlabeled-workload
+    spec:
+      containers:
+        - name: pause
+          image: busybox:1.38.0
+          command: ["sleep", "3600"]

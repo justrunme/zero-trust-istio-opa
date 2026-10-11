@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy kind + Istio + Gatekeeper + sample app for local demos.
+# Deploy kind + Istio (with OPA ext_authz) + Gatekeeper + sample app.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,9 +41,21 @@ else
 fi
 kubectl cluster-info
 
-istioctl install --set profile=demo -y
+echo "Installing Istio with OPA extension provider..."
+istioctl install -y -f "${ROOT}/manifests/istio-operator.yaml"
+kubectl -n istio-system wait --for=condition=available --timeout=300s deployment/istiod
+
 kubectl apply -f "${ROOT}/manifests/namespace.yaml"
 kubectl apply -f "${ROOT}/manifests/istio/istio-injection-label.yaml"
+
+echo "Deploying OPA-Envoy (policy from opa/policy.rego)..."
+kubectl create configmap opa-policy \
+  --from-file=policy.rego="${ROOT}/opa/policy.rego" \
+  --namespace istio-system \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "${ROOT}/manifests/opa/deployment.yaml"
+kubectl apply -f "${ROOT}/manifests/opa/config.yaml"
+kubectl -n istio-system wait --for=condition=available --timeout=180s deployment/opa
 
 helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
 helm repo update
@@ -56,10 +68,12 @@ helm upgrade --install gatekeeper gatekeeper/gatekeeper \
 
 kubectl apply -f "${ROOT}/manifests/app/"
 kubectl apply -f "${ROOT}/manifests/istio/"
+kubectl apply -f "${ROOT}/manifests/opa/authorizationpolicy-ext-authz.yaml"
 kubectl apply -f "${ROOT}/policies/templates/"
 kubectl apply -f "${ROOT}/policies/constraints/"
 
 kubectl -n frontend wait --for=condition=available --timeout=300s deployment/frontend
 kubectl -n backend wait --for=condition=available --timeout=300s deployment/backend
+kubectl -n db wait --for=condition=available --timeout=300s deployment/db
 
 echo "Deploy complete. Run scripts/test_policy.sh to verify allow/deny."

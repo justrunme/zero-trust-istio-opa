@@ -1,0 +1,15 @@
+# Delegate authorization decisions for backend to the OPA extension provider.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: backend-opa-ext-authz
+  namespace: backend
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  action: CUSTOM
+  provider:
+    name: opa-ext-authz
+  rules:
+    - {}

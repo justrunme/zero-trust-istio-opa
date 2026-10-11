@@ -1,3 +1,9 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: db
+  namespace: db
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,10 +21,13 @@ spec:
       labels:
         app: db
     spec:
+      serviceAccountName: db
       containers:
       - name: db
-        image: busybox:1.38.0
-        command: ['sh', '-c', 'echo "Database is running" && sleep 3600']
+        # httpd so AuthorizationPolicy allow/deny can be asserted over HTTP.
+        image: httpd:2.4.69
+        ports:
+        - containerPort: 80
 ---
 apiVersion: v1
 kind: Service
@@ -29,5 +38,5 @@ spec:
   selector:
     app: db
   ports:
-  - port: 5432 # Placeholder port
-    targetPort: 5432
+  - port: 80
+    targetPort: 80

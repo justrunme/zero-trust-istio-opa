@@ -1,3 +1,5 @@
+# Reference OPA-Envoy plugin config (mirrored by Deployment args).
+# Policy bundle is generated from opa/policy.rego via kustomize configMapGenerator.
 apiVersion: v1
 kind: ConfigMap
 metadata:

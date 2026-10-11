@@ -19,3 +19,14 @@ spec:
   trafficPolicy:
     tls:
       mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: db
+  namespace: db
+spec:
+  host: db.db.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL

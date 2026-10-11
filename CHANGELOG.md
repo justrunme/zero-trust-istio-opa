@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Istio `extensionProviders` (`opa-ext-authz` gRPC) via `manifests/istio-operator.yaml`.
+- OPA-Envoy deployment wired into the mesh with `AuthorizationPolicy action: CUSTOM` on backend.
+- Namespace `allow-nothing` AuthorizationPolicies, backend→db allow policy, dedicated ServiceAccounts.
+- Egress control: `Sidecar` `REGISTRY_ONLY` + `ServiceEntry` allowlist.
+- Kind e2e negative tests: plaintext STRICT rejection, OPA `/admin` 403, Gatekeeper deny, egress block.
+- Conftest mesh combine policy for STRICT + allow-nothing coverage.
+- OPA unit-test coverage gate (`--threshold 90`) with Envoy `CheckRequest` fixtures.
+
+### Changed
+- Rego rewritten for SPIFFE `source.principal` and exact `/healthz` path matching; deny-by-default.
+- OPA ConfigMap generated from `opa/policy.rego` at deploy time to prevent Rego/ConfigMap drift.
+- README claims updated to match the wired OPA external-authorizer path.
+
 ## [1.0.0] - 2026-10-10
 
 ### Added
