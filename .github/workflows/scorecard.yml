@@ -7,17 +7,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
     permissions:
-      security-events: write
-      id-token: write
       contents: read
       actions: read
+      # Publish SARIF results to GitHub code scanning
+      security-events: write
+      # OIDC token for publishing Scorecard results to the OpenSSF API
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
