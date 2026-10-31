@@ -24,7 +24,7 @@ spec:
       serviceAccountName: frontend
       containers:
       - name: frontend
-        image: nginx:1.31.0
+        image: nginx:1.31.7
         ports:
         - containerPort: 80
 ---
