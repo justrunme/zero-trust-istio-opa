@@ -13,6 +13,8 @@ Evidence: [docs/EVIDENCE.md](docs/EVIDENCE.md)
 
 Case study: [Zero Trust Service Mesh](https://justrunme.com/cases/zero-trust-service-mesh/) · [Andrey Lesnikov](https://justrunme.com/)
 
+Author: Andrey Lesnikov, Senior DevOps & AI Platform Engineer, [https://orcid.org/0009-0004-7583-4314](https://orcid.org/0009-0004-7583-4314)
+
 ## What it does
 
 - Enforces STRICT mTLS and explicit deny-by-default `AuthorizationPolicy` in `frontend` / `backend` / `db`
