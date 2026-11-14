@@ -25,7 +25,7 @@ spec:
       containers:
       - name: db
         # httpd so AuthorizationPolicy allow/deny can be asserted over HTTP.
-        image: httpd:2.4.69
+        image: httpd:2.4.70
         ports:
         - containerPort: 80
 ---
