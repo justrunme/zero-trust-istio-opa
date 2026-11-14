@@ -24,7 +24,7 @@ spec:
       serviceAccountName: backend
       containers:
       - name: backend
-        image: httpd:2.4.69
+        image: httpd:2.4.70
         ports:
         - containerPort: 80
 ---
